@@ -1,0 +1,33 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'   // JitPack 빌드 및 publishToMavenLocal(로컬 개발)용
+}
+
+group = 'com.github.DEV-asdf-516'   // JitPack 좌표와 일치시킴
+version = '0.1.0'
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(17) }
+    withSourcesJar()
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // 호스트 앱이 제공 — jar 미포함
+    compileOnly 'org.springframework.boot:spring-boot-autoconfigure:3.2.0'
+    compileOnly 'org.springframework:spring-webmvc:6.1.0'
+
+    // 스웨거 전이 설치 (이 라이브러리를 추가하면 springdoc도 함께 설치됨)
+    api 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13'
+
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor:3.2.0'
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) { from components.java }
+    }
+}
