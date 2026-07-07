@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.github.DEV-asdf-516'   // JitPack 좌표와 일치시킴
-version = '0.1.0'
+version = '0.2.0'
 
 java {
     toolchain { languageVersion = JavaLanguageVersion.of(17) }

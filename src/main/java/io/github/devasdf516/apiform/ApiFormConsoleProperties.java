@@ -8,7 +8,7 @@ public class ApiFormConsoleProperties {
     /** 콘솔 활성화 여부 (기본 true) */
     private boolean enabled = true;
 
-    /** 콘솔 서빙 경로 */
+    /** 콘솔(html) 서빙 경로. api-form.css/js는 같은 디렉토리 URL로 함께 서빙된다 */
     private String path = "/api-form.html";
 
     public boolean isEnabled() { return enabled; }

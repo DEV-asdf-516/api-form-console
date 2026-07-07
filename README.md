@@ -7,7 +7,7 @@ OpenAPI(springdoc) 스펙으로 요청 폼을 자동 생성하는 Spring Boot용
 
 ```gradle
 repositories { maven { url = uri('https://jitpack.io') } }
-dependencies { implementation 'com.github.DEV-asdf-516:api-form-console:v0.1.0' }
+dependencies { implementation 'com.github.DEV-asdf-516:api-form-console:v0.2.0' }
 ```
 
 ## 사용
@@ -20,7 +20,7 @@ dependencies { implementation 'com.github.DEV-asdf-516:api-form-console:v0.1.0' 
 ```yaml
 api-form-console:
   enabled: true          # false로 끄기
-  path: /api-form.html   # 서빙 경로 변경
+  path: /api-form.html   # 서빙 경로 변경 (css/js는 같은 디렉토리 URL로 함께 서빙됨)
 ```
 
 ## 보안 주의
