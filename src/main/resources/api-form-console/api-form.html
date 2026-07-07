@@ -92,6 +92,14 @@
     .meta { color: var(--muted); font: 12px var(--mono); margin-left: 10px; }
     .toolbar { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
     .hidden { display: none; }
+    /* [Added] 미리보기 우측 상단 복사 아이콘 버튼 */
+    .previewwrap { position: relative; margin-top: 8px; }
+    .previewwrap > pre { margin: 0; padding-right: 56px; }
+    .copybtn { position: absolute; top: 6px; right: 22px; /* pre 세로 스크롤바(~17px)와 겹치지 않게 간격 확보 */ width: 28px; height: 28px; padding: 0;
+      display: flex; align-items: center; justify-content: center; color: var(--muted); }
+    .copybtn svg { width: 14px; height: 14px; }
+    .copybtn.copied, .copybtn.copied:hover { color: var(--get); border-color: var(--get); }
+    .copybtn.hidden { display: none; }
     .errbox { color: var(--delete); font-size: 13px; margin-top: 8px; white-space: pre-wrap; }
     .sec-title { font: 600 12px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin: 0 0 8px; }
   </style>
@@ -141,8 +149,11 @@
     <div id="bodyForm"></div>
     <div class="toolbar">
       <button id="btnPreview">JSON 미리보기</button>
-      <button id="btnCopy" class="hidden">복사</button>
       <button id="btnFillToggle">JSON 붙여넣기</button>
+    </div>
+    <div id="previewWrap" class="previewwrap hidden">
+      <button id="btnCopy" class="copybtn hidden" title="복사" aria-label="JSON 복사"></button>
+      <pre id="previewBox"></pre>
     </div>
     <div id="fillArea" class="hidden" style="margin-top:8px">
       <textarea id="fillJson" placeholder='JSON을 붙여넣고 "폼에 적용"을 누르세요. 스키마에 있는 필드만 채워집니다.'></textarea>
@@ -153,7 +164,6 @@
         </label>
       </div>
     </div>
-    <pre id="previewBox" class="hidden"></pre>
   </div>
 
   <!-- 전송 -->
@@ -195,12 +205,18 @@
   $('baseUrl').value = (savedBase && savedBase.startsWith(location.origin)) ? savedBase : '';
   $('authHeader').value = localStorage.getItem(LS.auth) || '';
 
+  // [Added] 복사 아이콘 버튼 (Feather Icons) — 복사 성공 시 잠시 체크 아이콘으로 전환
+  const ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+  const ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>';
+  let copyResetTimer = null;
+  $('btnCopy').innerHTML = ICON_COPY;
+
   $('btnLoad').addEventListener('click', loadSpec);
   $('epSelect').addEventListener('change', () => renderOperation(Number($('epSelect').value)));
-  $('btnPreview').addEventListener('click', showPreview);
-  $('btnCopy').addEventListener('click', () => navigator.clipboard.writeText($('previewBox').textContent));
+  $('btnPreview').addEventListener('click', () => setPreviewOpen($('previewWrap').classList.contains('hidden'))); // [Modified]
+  $('btnCopy').addEventListener('click', copyPreview); // [Modified]
   $('btnSend').addEventListener('click', sendRequest);
-  $('btnFillToggle').addEventListener('click', () => $('fillArea').classList.toggle('hidden')); // [Added]
+  $('btnFillToggle').addEventListener('click', () => setFillOpen($('fillArea').classList.contains('hidden'))); // [Modified]
   $('btnFillApply').addEventListener('click', applyJsonToForm); // [Added]
   $('authHeader').addEventListener('change', e => localStorage.setItem(LS.auth, e.target.value));
   $('baseUrl').addEventListener('change', e => localStorage.setItem(LS.base, e.target.value));
@@ -303,7 +319,9 @@
     $('epMethod').className = `badge b-${method}`;
     $('epPath').textContent = path;
     $('epSummary').textContent = op.summary || op.description || '';
-    hide('previewBox'); hide('btnCopy'); hide('resBox'); hide('resStatus'); hide('resMeta'); hide('sendErr');
+    setPreviewOpen(false); setFillOpen(false); // [Modified] 버튼 라벨까지 초기 상태로 복원
+    lastPastedJson = null; // [Modified] 이전 엔드포인트에서 붙여넣은 JSON의 null 병합 누수 방지
+    hide('resBox'); hide('resStatus'); hide('resMeta'); hide('sendErr');
 
     // 파라미터
     const params = [...(pathItem.parameters || []), ...(op.parameters || [])]
@@ -652,15 +670,55 @@
   }
 
   /* ---------- 미리보기 / 전송 ---------- */
-  function showPreview() {
-    try {
-      const body = buildBody();
-      $('previewBox').textContent = body === undefined ? '(body 없음 — 빈 요청)' : JSON.stringify(body, null, 2);
-      show('previewBox'); show('btnCopy');
-    } catch (e) {
-      $('previewBox').textContent = '오류: ' + e.message;
-      show('previewBox');
+  // [Modified] 미리보기·붙여넣기 영역은 상호배타 토글 — 하나를 열면 다른 쪽은 닫힘
+  function setPreviewOpen(open) {
+    if (open) {
+      setFillOpen(false);
+      try {
+        const body = buildBody();
+        $('previewBox').textContent = body === undefined ? '(body 없음 — 빈 요청)' : JSON.stringify(body, null, 2);
+        show('btnCopy');
+      } catch (e) {
+        $('previewBox').textContent = '오류: ' + e.message;
+        hide('btnCopy');
+      }
+      show('previewWrap');
+    } else {
+      hide('previewWrap');
     }
+    $('btnPreview').textContent = open ? '미리보기 접기' : 'JSON 미리보기';
+  }
+
+  function setFillOpen(open) {
+    if (open) setPreviewOpen(false);
+    (open ? show : hide)('fillArea');
+    $('btnFillToggle').textContent = open ? '붙여넣기 접기' : 'JSON 붙여넣기';
+  }
+
+  // [Added] 미리보기 JSON 복사 — 성공 시 1.4초간 체크 아이콘으로 피드백
+  async function copyPreview() {
+    const text = $('previewBox').textContent;
+    let ok = true;
+    try { await navigator.clipboard.writeText(text); }
+    catch {
+      // clipboard API를 쓸 수 없는 비보안(http) 컨텍스트 폴백
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      ok = document.execCommand('copy');
+      ta.remove();
+    }
+    if (!ok) return;
+    $('btnCopy').innerHTML = ICON_CHECK;
+    $('btnCopy').classList.add('copied');
+    clearTimeout(copyResetTimer);
+    copyResetTimer = setTimeout(() => {
+      $('btnCopy').innerHTML = ICON_COPY;
+      $('btnCopy').classList.remove('copied');
+    }, 1400);
   }
 
   async function sendRequest() {
